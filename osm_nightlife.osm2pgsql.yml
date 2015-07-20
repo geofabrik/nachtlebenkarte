@@ -1,0 +1,276 @@
+---
+  description: ""
+  format: "png"
+  interactivity: false
+  maxzoom: 18
+  minzoom: 0
+  name: "Nightlife"
+  srs: "+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +wktext +no_defs +over"
+  metatile: 4
+
+  _parts:
+    extents: &extents
+      extent: "-20037508,-20037508,20037508,20037508"
+      srs-name: "900913"
+      srs: "+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0.0 +k=1.0 +units=m +nadgrids=@null +wktext +no_defs +over"
+      status: "on"
+  
+    osm2pgsql: &osm2pgsql
+      type: "postgis"
+      dbname: "gis"
+      key_field: ""
+      geometry_field: "way"
+      extent: "-20037508,-20037508,20037508,20037508"
+
+  Layer: 
+    - 
+      id: "land-low"
+      name: "land-low"
+      class: "shp"
+      geometry: "polygon"
+      <<: *extents
+      Datasource: 
+        dbname: "gis"
+        type: "shape"        
+        extent: "-20037508.34 -20037508.34 20037508.34 20037508.34"
+        file: "shp/simplified-land-polygons-complete-3857/simplified_land_polygons.shp"
+
+    - 
+      id: "land-high"
+      name: "land-high"
+      class: "shp"
+      geometry: "polygon"
+      <<: *extents
+      Datasource: 
+        type: "shape"
+        file: "shp/land-polygons-split-3857/land_polygons.shp"
+
+    - 
+      id: "residential"
+      name: "residential"
+      class: ""
+      geometry: "polygon"
+      <<: *extents
+      Datasource:
+        <<: *osm2pgsql
+        table: "( SELECT way, way_area AS area, landuse AS type FROM planet_osm_polygon WHERE landuse IN ('residential')) AS data"
+
+    - 
+      id: "waterway_low"
+      name: "waterway_low"
+      class: ""
+      geometry: "linestring"
+      <<: *extents
+      Datasource:
+        <<: *osm2pgsql
+        table: "(SELECT way, waterway AS type FROM planet_osm_line WHERE waterway IN ('river', 'canal')) AS data"
+
+    -
+      id: "waterway_med"
+      name: "waterway_med" 
+      class: ""
+      geometry: "linestring"
+      <<: *extents
+      Datasource: 
+        <<: *osm2pgsql
+        table: "(SELECT way, waterway AS type FROM planet_osm_line WHERE waterway IN ('river', 'canal', 'stream')) AS data"
+
+    - 
+      id: "water_gen0"
+      name: "water_gen0"
+      class: ""
+      geometry: "polygon"
+      <<: *extents
+      Datasource:
+        <<: *osm2pgsql
+        table: "(SELECT way, \"natural\" AS type, way_area AS area FROM planet_osm_polygon WHERE (\"natural\" IN ('water') OR waterway IN ('riverbank')) AND way_area > 1500000) AS data"
+
+    - 
+      id: "water"
+      name: "water"
+      class: ""
+      geometry: "polygon"
+      <<: *extents
+      Datasource: 
+        <<: *osm2pgsql
+        table: "(SELECT way, way_area AS area FROM planet_osm_polygon WHERE \"natural\" IN ('water') OR waterway IN ('riverbank')) AS data"
+
+    - 
+      id: "streets_low"
+      name: "streets_low"
+      class: ""
+      geometry: "linestring"
+      <<: *extents
+      Datasource: 
+        <<: *osm2pgsql
+        table: "(SELECT way, highway AS type FROM planet_osm_line WHERE highway IN ('motorway', 'trunk', 'primary')) AS data"
+
+    - 
+      id: "streets_med"
+      name: "streets_med"
+      class: ""
+      geometry: "linestring"
+      <<: *extents
+      Datasource: 
+        <<: *osm2pgsql
+        table: "(SELECT way AS way, highway AS type, tags->'lit' AS lit FROM planet_osm_line WHERE highway IN ('motorway', 'trunk', 'primary', 'secondary', 'tertiary')) AS data"
+
+    - 
+      id: "streets_high"
+      name: "streets_high"
+      class: ""
+      geometry: "linestring"
+      <<: *extents
+      Datasource: 
+        <<: *osm2pgsql
+        table: "(SELECT line.way as way, line.highway as type, line.tags->'lit' AS lit, (((select count(*) from planet_osm_point pt where (amenity in ('restaurant', 'pub', 'bar', 'biergarten', 'nightclub') OR (amenity IN ('cafe') AND (tags->'opening_hours') similar to '%-(2[1234]|0?[012345]):%') OR leisure IN ('bandstand', 'dance')) and st_length(line.way) >= 25 and st_dwithin(line.way, pt.way, 15))*0.5) + (select count(*) from planet_osm_point pt where (amenity in ('restaurant', 'pub', 'bar', 'biergarten', 'nightclub') OR (amenity IN ('cafe') AND (tags->'opening_hours') similar to '%-(2[1234]|0?[012345]):%') OR leisure IN ('bandstand', 'dance')) and st_length(line.way) >= 25 and st_dwithin(line.way, pt.way, 25))*0.5)* 1000 / st_length(line.way) AS anzahl_pois_pro_km FROM planet_osm_line line WHERE highway IN ('motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'unclassified', 'residential', 'service', 'living_street', 'pedestrian', 'road', 'footway', 'path')) AS data"
+
+    - 
+      id: "streets_med_lit"
+      name: "streets_med_lit"
+      class: ""
+      geometry: "linestring"
+      <<: *extents
+      Datasource: 
+        <<: *osm2pgsql
+        table: "(SELECT way, highway AS type, tags->'lit' AS lit, tags->'lit_by_gaslight' AS lit_gas FROM planet_osm_line WHERE highway IN ('motorway', 'trunk', 'primary', 'secondary', 'tertiary') AND tags->'lit' IN ('yes') UNION SELECT line.way AS way, line.highway AS type, 'yes' AS lit, pt.tags->'lit_by_gaslight' AS lit_gas FROM planet_osm_line line, planet_osm_point pt WHERE line.highway IN ('motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'unclassified', 'residential', 'service', 'living_street', 'pedestrian', 'road', 'footway', 'path') AND pt.highway = 'street_lamp' AND ST_DWithin(line.way, pt.way, 10)\n) AS data"
+
+    - 
+      id: "streets_high_lit"
+      name: "streets_high_lit"
+      class: ""
+      geometry: "linestring"
+      <<: *extents
+      Datasource: 
+        <<: *osm2pgsql
+        table: "(SELECT line.way as way, line.highway as type, tags->'lit' AS lit, tags->'lit_by_gaslight' AS lit_gas, (((select count(*) from planet_osm_point pt where (amenity IN ('bar', 'nightclub', 'biergarten', 'pub', 'restaurant') OR (amenity IN ('cafe') AND (tags->'opening_hours') similar to '%-(2[1234]|0?[012345]):%') OR leisure IN ('bandstand', 'dance')) and st_length(line.way) >= 25 and st_dwithin(line.way, pt.way, 15))*0.5) + (select count(*) from planet_osm_point pt where (amenity IN ('bar', 'nightclub', 'biergarten', 'pub', 'restaurant') OR (amenity IN ('cafe') AND (tags->'opening_hours') similar to '%-(2[1234]|0?[012345]):%') OR leisure IN ('bandstand', 'dance')) and st_length(line.way) >= 25 and st_dwithin(line.way, pt.way, 25))*0.5)* 1000 / st_length(line.way) AS anzahl_pois_pro_km FROM planet_osm_line line WHERE highway IN ('motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'unclassified', 'residential', 'service', 'living_street', 'pedestrian', 'road', 'footway', 'path') AND tags->'lit' IN ('yes') UNION SELECT line.way AS way, line.highway AS type, 'yes' AS lit, pt.tags->'lit_by_gaslight' AS lit_gas, (((select count(*) from planet_osm_point pt where (amenity IN ('bar', 'nightclub', 'biergarten', 'pub', 'restaurant') OR (amenity IN ('cafe') AND (tags->'opening_hours') similar to '%-(2[1234]|0?[012345]):%') OR leisure IN ('bandstand', 'dance')) and st_length(line.way) >= 25 and st_dwithin(line.way, pt.way, 15))*0.5) + (select count(*) from planet_osm_point pt where (amenity IN ('bar', 'nightclub', 'biergarten', 'pub', 'restaurant') OR (amenity IN ('cafe') AND (tags->'opening_hours') similar to '%-(2[1234]|0?[012345]):%') OR leisure IN ('bandstand', 'dance')) and st_length(line.way) >= 25 and st_dwithin(line.way, pt.way, 25))*0.5)* 1000 / st_length(line.way) AS anzahl_pois_pro_km FROM planet_osm_line line, planet_osm_point pt WHERE line.highway IN ('motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'unclassified', 'residential', 'service', 'living_street', 'pedestrian', 'road', 'footway', 'path') AND pt.highway = 'street_lamp' AND ST_DWithin(line.way, pt.way, 10)) AS data"
+
+    - 
+      id: "buildings"
+      name: "buildings"
+      class: ""
+      geometry: "polygon"
+      <<: *extents
+      Datasource: 
+        <<: *osm2pgsql
+        table: "(SELECT way, building AS buildings, amenity AS type FROM planet_osm_polygon WHERE building IS NOT NULL) AS data"
+
+    - 
+      id: "locality_buildings"
+      name: "locality_buildings"
+      class: ""
+      geometry: "polygon"
+      <<: *extents
+      Datasource: 
+        <<: *osm2pgsql
+        table: "(SELECT pol.way AS way, pt.amenity AS type, pt.leisure AS type_b FROM planet_osm_polygon pol, planet_osm_point pt WHERE pol.building IS NOT NULL AND (pt.amenity IN ('bar', 'nightclub', 'biergarten', 'pub', 'restaurant') OR pt.leisure IN ('bandstand', 'dance')) AND ST_Contains(pol.way, pt.way) UNION SELECT way AS way, amenity AS type, leisure AS type_b FROM planet_osm_polygon WHERE (amenity IN ('bar', 'nightclub', 'biergarten', 'pub', 'restaurant') OR leisure IN ('bandstand', 'dance')) AND building IS NOT NULL UNION SELECT pol.way AS way, pt.amenity AS type, pt.leisure AS type_b FROM planet_osm_polygon pol, planet_osm_point pt WHERE pol.building IS NOT NULL AND pt.amenity IN ('cafe') AND (pt.tags->'opening_hours') similar to '%-(2[1234]|0?[012345]):%' AND ST_Contains(pol.way, pt.way) UNION SELECT way AS way, amenity AS type, leisure AS type_b FROM planet_osm_polygon WHERE amenity IN ('cafe') AND building IS NOT NULL AND (tags->'opening_hours') similar to '%-(2[1234]|0?[012345]):%') AS data"
+
+    - 
+      id: "street_lamps"
+      name: "street_lamps"
+      class: ""
+      geometry: "point"
+      <<: *extents
+      Datasource: 
+        <<: *osm2pgsql
+        table: "(SELECT way, highway, tags->'lit_by_gaslight' AS lit_gas FROM planet_osm_point WHERE highway in ('street_lamp')) AS data"
+
+    - 
+      id: "nightliner"
+      name: "nightliner"
+      class: ""
+      geometry: "linestring"
+      <<: *extents
+      Datasource: 
+        <<: *osm2pgsql
+        table: "(SELECT way, route, service FROM planet_osm_line WHERE service IN ('night')) AS data"
+
+    - 
+      id: "nightliner_stops"
+      name: "nightliner_stops"
+      class: ""
+      geometry: "point"
+      <<: *extents
+      Datasource: 
+        <<: *osm2pgsql
+        table: "(SELECT pt.name AS Haltestelle, pt.way AS way FROM planet_osm_line line, planet_osm_point pt WHERE line.service IN ('night') AND pt.public_transport IN ('stop_position', 'platform', 'station') AND st_dwithin(pt.way, line.way, 10)) AS data"
+
+    - 
+      id: "POIs"
+      name: "POIs"
+      class: ""
+      geometry: "point"
+      <<: *extents
+      Datasource: 
+        <<: *osm2pgsql
+        table: "(SELECT way, amenity AS type FROM planet_osm_point WHERE amenity IN ('bar', 'nightclub', 'biergarten', 'pub', 'restaurant') OR (amenity IN ('cafe') AND (tags->'opening_hours') similar to '%-(2[1234]|0?[012345]):%') OR leisure in ('bandstand', 'dance')) AS data"
+
+    - 
+      id: "POIs_high"
+      name: "POIs_high"
+      class: ""
+      geometry: "point"
+      <<: *extents
+      Datasource: 
+        <<: *osm2pgsql
+        table: "(SELECT way AS way, amenity AS type, leisure AS type_b FROM planet_osm_point WHERE (amenity in ('bar', 'nightclub', 'biergarten', 'pub', 'restaurant') OR (amenity IN ('cafe') AND (tags->'opening_hours') similar to '%-(2[1234]|0?[012345]):%') OR leisure in ('bandstand', 'dance')) UNION SELECT ST_PointOnSurface(way) AS way, amenity AS type, leisure AS type_b FROM planet_osm_polygon WHERE (amenity in ('bar', 'nightclub', 'biergarten', 'pub', 'restaurant') OR (amenity IN ('cafe') AND (tags->'opening_hours') similar to '%-(2[1234]|0?[012345]):%') OR leisure in ('bandstand', 'dance')) AND building IS NOT NULL) AS data"
+
+    - 
+      id: "place_label"
+      name: "place_label"
+      class: ""
+      geometry: "point"
+      properties: 
+        clear-label-cache: "true"
+        minzoom: 6
+        maxzoom: 12
+      <<: *extents
+      Datasource: 
+        <<: *osm2pgsql
+        table: "(SELECT way, place AS type, name, z_order, population FROM planet_osm_point WHERE place IN ('city', 'town', 'village', 'hamlet', 'suburb', 'neighbourhood') ORDER BY population DESC NULLS LAST\n) AS data"
+
+    - 
+      id: "place_label_b"
+      name: "place_label_b"
+      class: ""
+      geometry: "point"
+      <<: *extents
+      Datasource: 
+        <<: *osm2pgsql
+        table: "(SELECT way, place AS type, name, z_order, population FROM planet_osm_point WHERE place IN ('city', 'town', 'village', 'hamlet', 'suburb', 'neighbourhood') ORDER BY population DESC NULLS LAST\n) AS data"
+
+    - 
+      id: "roads_label"
+      name: "roads_label"
+      class: ""
+      geometry: "linestring"
+      <<: *extents
+      Datasource: 
+        <<: *osm2pgsql
+        table: "(SELECT line.way as way, line.highway as type, line.name AS name FROM planet_osm_line line WHERE highway IN ('motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'unclassified', 'residential', 'service', 'living_street', 'pedestrian', 'road', 'footway', 'path')) AS data"
+
+    - 
+      id: "localities_label"
+      name: "localities_label"
+      class: ""
+      geometry: "point"
+      <<: *extents
+      Datasource: 
+        <<: *osm2pgsql
+        table: "(SELECT way AS way, amenity AS type, name AS name, leisure AS type_b FROM planet_osm_point WHERE (amenity in ('bar', 'nightclub', 'biergarten', 'pub', 'restaurant') OR (amenity IN ('cafe') AND (tags->'opening_hours') similar to '%-(2[1234]|0?[012345]):%')OR leisure in ('bandstand', 'dance')) UNION SELECT ST_PointOnSurface(way) AS way, amenity AS type, name AS name, leisure AS type_b FROM planet_osm_polygon WHERE (amenity in ('bar', 'nightclub', 'biergarten', 'pub', 'restaurant') OR (amenity IN ('cafe') AND (tags->'opening_hours') similar to '%-(2[1234]|0?[012345]):%')OR leisure in ('bandstand', 'dance')) AND building IS NOT NULL) AS data"
+
+  Stylesheet: 
+    - "palette.mss"
+    - "base.mss"
+    - "thematic.mss"
+    - "labels.mss"
+  attribution: "Data © OpenStreetMap (and) contributors, CC-BY-SA"
+  bounds: 
+    - -180
+    - -85.0511
+    - 180
+    - 85.0511
+  center: 
+    - 8.4
+    - 49
+    - 4
